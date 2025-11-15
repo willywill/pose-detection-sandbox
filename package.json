@@ -1,0 +1,23 @@
+{
+  "name": "pose-detection-sandbox",
+  "version": "1.0.0",
+  "description": "Toying around with computer vision stuff",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/willywill/pose-detection-sandbox.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/willywill/pose-detection-sandbox/issues"
+  },
+  "homepage": "https://github.com/willywill/pose-detection-sandbox#readme",
+  "devDependencies": {
+    "vite": "^7.2.2"
+  }
+}

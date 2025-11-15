@@ -1,0 +1,27 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+canvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+.debug-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 12px 16px;
+  background: rgba(20, 20, 25, 0.95);
+  color: #ffffff;
+  font-family: monospace;
+  font-size: 13px;
+  border-radius: 12px;
+  white-space: pre; /* allows multi-line text */
+  pointer-events: none; /* don't block clicking */
+  line-height: 1.6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
