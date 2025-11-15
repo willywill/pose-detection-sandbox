@@ -1,9 +1,9 @@
 /**
  * Updates the debug panel with current detection information
- * @param {HTMLElement} debugEl - The debug element to update
+ * @param {HTMLElement} debugContentEl - The debug content element to update
  * @param {Object} info - Key-value pairs to display
  */
-export const setDebug = (debugEl, info) => {
+export const setDebug = (debugContentEl, info) => {
   let txt = "";
   
   // Detection Info Section
@@ -37,7 +37,7 @@ export const setDebug = (debugEl, info) => {
   txt += `Facing Each Other: ${info.facing}\n`;
   txt += `Close: ${info.close}\n`;
   
-  debugEl.textContent = txt;
+  debugContentEl.textContent = txt;
 };
 
 /**

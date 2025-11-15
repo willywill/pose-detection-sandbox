@@ -1,0 +1,1 @@
+There is no linter here, this is a scrappy project, do not check for linting.

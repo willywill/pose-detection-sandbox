@@ -14,9 +14,18 @@ import {
 const video = document.getElementById("webcam");
 const canvas = document.getElementById("canvas");
 const debugEl = document.getElementById("debug");
+const debugContentEl = document.getElementById("debug-content");
+const debugToggleCheckbox = document.getElementById("debug-toggle-checkbox");
+const selectionScreen = document.getElementById("selection-screen");
+const experimentButtonsContainer = document.getElementById("experiment-buttons");
 const ctx = canvas.getContext("2d");
 
 let lastDetections = null;
+
+// Array of available experiments
+const experiments = [
+  { name: "Fist Bump", id: "fist-bump" },
+];
 
 /**
  * Main render loop for hand detection and gesture recognition
@@ -45,9 +54,12 @@ const renderLoop = () => {
   };
 
   if (lastDetections.length > 0) {
-    lastDetections.forEach((landmarks) =>
-      drawHand(ctx, landmarks, canvas)
-    );
+    // Only draw hand points if debug is enabled
+    if (debugToggleCheckbox.checked) {
+      lastDetections.forEach((landmarks) =>
+        drawHand(ctx, landmarks, canvas)
+      );
+    }
 
     if (lastDetections.length === 2) {
       const [A, B] = lastDetections;
@@ -87,17 +99,59 @@ const renderLoop = () => {
     }
   }
 
-  setDebug(debugEl, debug);
+  setDebug(debugContentEl, debug);
 
   requestAnimationFrame(renderLoop);
 };
 
 /**
- * Initializes the application
+ * Starts an experiment by hiding the selection screen and initializing the camera
  */
-const init = async () => {
+const startExperiment = async (experimentId) => {
+  // Hide selection screen
+  selectionScreen.classList.add("hidden");
+  
+  // Show debug panel
+  debugEl.style.display = "block";
+  
+  // Initialize hand landmarker and start webcam
   await initHandLandmarker();
   await startWebcam(video, canvas, renderLoop);
+};
+
+/**
+ * Sets up the selection screen with experiment buttons
+ */
+const setupSelectionScreen = () => {
+  experiments.forEach((experiment) => {
+    const button = document.createElement("button");
+    button.textContent = experiment.name;
+    button.addEventListener("click", () => {
+      startExperiment(experiment.id);
+    });
+    experimentButtonsContainer.appendChild(button);
+  });
+};
+
+/**
+ * Sets up the debug toggle checkbox handler
+ */
+const setupDebugToggle = () => {
+  debugToggleCheckbox.addEventListener("change", (e) => {
+    if (e.target.checked) {
+      debugContentEl.classList.remove("hidden");
+    } else {
+      debugContentEl.classList.add("hidden");
+    }
+  });
+};
+
+/**
+ * Initializes the application
+ */
+const init = () => {
+  setupSelectionScreen();
+  setupDebugToggle();
 };
 
 init();

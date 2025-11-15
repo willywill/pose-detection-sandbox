@@ -7,8 +7,18 @@
   </head>
 
   <body>
+    <div id="selection-screen">
+      <h1>Will's Pose Experiments</h1>
+      <div id="experiment-buttons"></div>
+    </div>
     <canvas id="canvas"></canvas>
-    <div id="debug" class="debug-panel"></div>
+    <div id="debug" class="debug-panel" style="display:none;">
+      <label class="debug-toggle">
+        <input type="checkbox" id="debug-toggle-checkbox" checked>
+        <span>Show Debug</span>
+      </label>
+      <div id="debug-content"></div>
+    </div>
     <video id="webcam" autoplay playsinline style="display:none;"></video>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
     <script type="module" src="main.js"></script>
