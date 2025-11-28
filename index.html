@@ -9,6 +9,8 @@
   <body>
     <div id="selection-screen">
       <h1>Will's Pose Experiments</h1>
+      <p class="selection-subtitle">Select an experiment to begin with</p>
+      <p class="camera-notice">Make sure your camera is plugged in</p>
       <div id="experiment-buttons"></div>
     </div>
     <canvas id="canvas"></canvas>
@@ -20,6 +22,7 @@
       <div id="debug-content"></div>
     </div>
     <video id="webcam" autoplay playsinline style="display:none;"></video>
+    <canvas id="canvas-3d"></canvas>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
     <script type="module" src="main.js"></script>
   </body>

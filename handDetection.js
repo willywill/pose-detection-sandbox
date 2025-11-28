@@ -111,3 +111,61 @@ export const isThumbsUp = (hand) => {
  */
 export const handsClose = (handA, handB) => dist(handA[0], handB[0]) < 0.25;
 
+/**
+ * Calculates the rotation of a fist gesture in 3D space
+ * Uses wrist, middle finger MCP, and thumb positions to determine orientation
+ * @param {Array} hand - Array of hand landmarks
+ * @returns {Object} Object with x, y, z rotation values in radians (Euler angles)
+ */
+export const getFistRotation = (hand) => {
+  const wrist = hand[0];
+  const middleKnuckle = hand[9]; // Middle finger MCP
+  const thumbTip = hand[4];
+  const indexKnuckle = hand[5]; // Index finger MCP
+
+  // Calculate forward vector (from wrist to middle knuckle)
+  const forwardX = middleKnuckle.x - wrist.x;
+  const forwardY = middleKnuckle.y - wrist.y;
+  const forwardZ = (middleKnuckle.z || 0) - (wrist.z || 0);
+
+  // Calculate right vector (from wrist to thumb/index knuckle)
+  const rightX = thumbTip.x - wrist.x;
+  const rightY = thumbTip.y - wrist.y;
+  const rightZ = (thumbTip.z || 0) - (wrist.z || 0);
+
+  // Normalize forward vector
+  const forwardLength = Math.sqrt(forwardX * forwardX + forwardY * forwardY + forwardZ * forwardZ);
+  if (forwardLength < 0.001) {
+    return { x: 0, y: 0, z: 0 }; // Default rotation if hand is too flat
+  }
+
+  const fnX = forwardX / forwardLength;
+  const fnY = forwardY / forwardLength;
+  const fnZ = forwardZ / forwardLength;
+
+  // Calculate yaw (rotation around Y axis) - horizontal rotation
+  const yaw = Math.atan2(fnX, fnZ);
+
+  // Calculate pitch (rotation around X axis) - vertical rotation
+  const pitch = -Math.asin(fnY);
+
+  // Calculate roll (rotation around Z axis) - tilt rotation
+  // Use the right vector projected onto the XY plane
+  const rightLength = Math.sqrt(rightX * rightX + rightY * rightY);
+  let roll = 0;
+  if (rightLength > 0.001) {
+    // Project right vector onto plane perpendicular to forward vector
+    const rightNormX = rightX / rightLength;
+    const rightNormY = rightY / rightLength;
+    
+    // Calculate angle between right vector and horizontal
+    roll = Math.atan2(rightNormY, rightNormX) - Math.PI / 2;
+  }
+
+  return {
+    x: pitch,  // Rotation around X axis
+    y: yaw,    // Rotation around Y axis
+    z: roll,   // Rotation around Z axis
+  };
+};
+

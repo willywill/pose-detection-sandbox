@@ -19,3 +19,4 @@ export const startWebcam = async (video, canvas, onReady) => {
   });
 };
 
+

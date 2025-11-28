@@ -19,5 +19,8 @@
   "homepage": "https://github.com/willywill/pose-detection-sandbox#readme",
   "devDependencies": {
     "vite": "^7.2.2"
+  },
+  "dependencies": {
+    "three": "^0.181.1"
   }
 }
