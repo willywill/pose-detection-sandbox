@@ -7,12 +7,39 @@ import { dist } from "./utils.js";
 let handLandmarker = null;
 
 /**
- * Initializes the MediaPipe Hand Landmarker with GPU acceleration
+ * @typedef {Object} ParsedHandPacket
+ * @property {number} index - Index in the original detection order
+ * @property {Array<{x:number,y:number,z?:number}>} landmarks - Normalized image landmarks
+ * @property {Array<{x:number,y:number,z?:number}>|null} worldLandmarks - Meters, origin at hand; may be missing
+ * @property {'Left'|'Right'|null} handedness
+ * @property {number} handednessScore
  */
-export const initHandLandmarker = async () => {
+
+/**
+ * Initializes the MediaPipe Hand Landmarker with GPU acceleration.
+ * @param {Object} [options]
+ * @param {'default'|'table-tennis'} [options.gameMode='default'] Use stricter tracking for table tennis
+ */
+export const initHandLandmarker = async (options = {}) => {
+  const gameMode = options.gameMode ?? "default";
   const vision = await FilesetResolver.forVisionTasks(
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
   );
+
+  const tableTennisOptions =
+    gameMode === "table-tennis"
+      ? {
+          numHands: 2,
+          minHandDetectionConfidence: 0.65,
+          minHandPresenceConfidence: 0.6,
+          minTrackingConfidence: 0.55,
+        }
+      : {
+          numHands: 2,
+          minHandDetectionConfidence: 0.5,
+          minHandPresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        };
 
   handLandmarker = await HandLandmarker.createFromOptions(vision, {
     baseOptions: {
@@ -21,7 +48,7 @@ export const initHandLandmarker = async () => {
         "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
     },
     runningMode: "VIDEO",
-    numHands: 2,
+    ...tableTennisOptions,
   });
 };
 
@@ -30,6 +57,30 @@ export const initHandLandmarker = async () => {
  * @returns {HandLandmarker|null} The hand landmarker instance
  */
 export const getHandLandmarker = () => handLandmarker;
+
+/**
+ * Normalizes a HandLandmarker result into per-hand packets with handedness and world landmarks.
+ * @param {*} result - detect() / detectForVideo() result
+ * @returns {ParsedHandPacket[]}
+ */
+export const parseHandLandmarkerResult = (result) => {
+  const landmarksList = result.landmarks || [];
+  const worldList = result.worldLandmarks || [];
+  const handedList = result.handedness || [];
+
+  return landmarksList.map((landmarks, index) => {
+    const cat = handedList[index]?.[0];
+    return {
+      index,
+      landmarks,
+      worldLandmarks: worldList[index] ?? null,
+      handedness: cat?.categoryName === "Left" || cat?.categoryName === "Right"
+        ? cat.categoryName
+        : null,
+      handednessScore: typeof cat?.score === "number" ? cat.score : 0,
+    };
+  });
+};
 
 /**
  * Detects if a hand is making a fist gesture

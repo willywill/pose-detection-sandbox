@@ -3,118 +3,367 @@ import * as THREE from "three";
 let scene = null;
 let camera = null;
 let renderer = null;
-let cylinder = null;
+let sceneCanvas = null;
+let paddle = null;
+let ball = null;
 let isInitialized = false;
+let hasPaddlePose = false;
+let paddleHitCooldown = 0;
+let paddleScreenRotationZ = 0;
+
+const paddleVelocity = new THREE.Vector3();
+const lastPaddlePosition = new THREE.Vector3();
+const ballVelocity = new THREE.Vector3();
+const tempVector = new THREE.Vector3();
+const faceCenterWorld = new THREE.Vector3();
+const collisionNormal = new THREE.Vector3();
+
+const CAMERA_Z = 5;
+const BALL_Z = -2.4;
+const BALL_RADIUS = 0.12;
+const BALL_GRAVITY = -7.5;
+const MAX_FALL_SPEED = 8.5;
+const PADDLE_FACE_RADIUS = 1.22;
+const PADDLE_FACE_THICKNESS = 0.05;
+const PADDLE_FACE_CENTER_Y = 1.48;
+/** Gameplay hit uses slightly larger radius than the visible mesh for forgiving contact. */
+const PADDLE_HIT_RADIUS_MULT = 1.12;
+const HANDLE_RADIUS = 0.18;
+const HANDLE_LENGTH = 1.75;
+const HANDLE_CENTER_Y = -0.4;
+const SIDE_PADDING_RATIO = 0.18;
+const TOP_SPAWN_OFFSET = 0.6;
+const MIN_BALL_SPEED = 2.6;
+const MAX_BALL_SPEED = 5.8;
+const MIN_UPWARD_SPEED = 4.4;
+
+const randomRange = (min, max) => min + Math.random() * (max - min);
+
+const clampBallSpeed = () => {
+  const speed = ballVelocity.length();
+  if (speed < 0.001) {
+    ballVelocity.set(0.8, -MIN_BALL_SPEED, 0);
+    return;
+  }
+
+  if (speed < MIN_BALL_SPEED) {
+    ballVelocity.setLength(MIN_BALL_SPEED);
+  } else if (speed > MAX_BALL_SPEED) {
+    ballVelocity.setLength(MAX_BALL_SPEED);
+  }
+};
+
+const getVisibleWorldSize = (z = BALL_Z) => {
+  if (!camera) {
+    return { width: 0, height: 0 };
+  }
+
+  const distance = Math.max(0.1, camera.position.z - z);
+  const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+  const height = 2 * Math.tan(verticalFov / 2) * distance;
+
+  return {
+    width: height * camera.aspect,
+    height,
+  };
+};
+
+const createPaddle = () => {
+  paddle = new THREE.Group();
+
+  const faceGeometry = new THREE.CylinderGeometry(
+    PADDLE_FACE_RADIUS,
+    PADDLE_FACE_RADIUS,
+    PADDLE_FACE_THICKNESS,
+    48
+  );
+  faceGeometry.rotateX(Math.PI / 2);
+
+  const faceMaterial = new THREE.MeshStandardMaterial({
+    color: 0xd63c32,
+    metalness: 0.15,
+    roughness: 0.7,
+  });
+  const face = new THREE.Mesh(faceGeometry, faceMaterial);
+  face.position.y = PADDLE_FACE_CENTER_Y;
+  paddle.add(face);
+
+  const handleGeometry = new THREE.CylinderGeometry(
+    HANDLE_RADIUS,
+    HANDLE_RADIUS * 1.05,
+    HANDLE_LENGTH,
+    24
+  );
+  const handleMaterial = new THREE.MeshStandardMaterial({
+    color: 0xc48a54,
+    metalness: 0.05,
+    roughness: 0.92,
+  });
+  const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+  handle.position.y = HANDLE_CENTER_Y;
+  paddle.add(handle);
+
+  const neckGeometry = new THREE.CylinderGeometry(0.28, 0.34, 0.34, 20);
+  neckGeometry.rotateX(Math.PI / 2);
+  const neck = new THREE.Mesh(neckGeometry, handleMaterial);
+  neck.position.y = 0.22;
+  paddle.add(neck);
+
+  paddle.visible = false;
+  scene.add(paddle);
+};
+
+const createBall = () => {
+  const geometry = new THREE.SphereGeometry(BALL_RADIUS, 24, 24);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xf7f7f2,
+    emissive: 0x1a1a1a,
+    metalness: 0.05,
+    roughness: 0.35,
+  });
+
+  ball = new THREE.Mesh(geometry, material);
+  scene.add(ball);
+};
+
+const resetBall = () => {
+  if (!ball) return;
+
+  const { width, height } = getVisibleWorldSize(BALL_Z);
+  const minX = -width / 2 + width * SIDE_PADDING_RATIO;
+  const maxX = width / 2 - width * SIDE_PADDING_RATIO;
+
+  ball.position.set(randomRange(minX, maxX), height / 2 + TOP_SPAWN_OFFSET, BALL_Z);
+  ballVelocity.set(
+    randomRange(0.8, 1.8) * (Math.random() < 0.5 ? -1 : 1),
+    -randomRange(2.4, 3.6),
+    0
+  );
+};
+
+const updatePaddle = (
+  paddlePosition,
+  paddleRotation,
+  paddleVisible,
+  deltaTime,
+  gameplayRotationZ = null
+) => {
+  if (!paddle) return;
+
+  paddle.visible = paddleVisible;
+
+  if (!paddleVisible || !paddlePosition) {
+    hasPaddlePose = false;
+    paddleVelocity.set(0, 0, 0);
+    return;
+  }
+
+  tempVector.set(paddlePosition.x, paddlePosition.y, paddlePosition.z);
+
+  if (!hasPaddlePose || deltaTime <= 0) {
+    paddleVelocity.set(0, 0, 0);
+    hasPaddlePose = true;
+  } else {
+    paddleVelocity.copy(tempVector).sub(lastPaddlePosition).multiplyScalar(1 / deltaTime);
+  }
+
+  paddle.position.copy(tempVector);
+  lastPaddlePosition.copy(tempVector);
+
+  if (paddleRotation) {
+    paddle.rotation.set(paddleRotation.x || 0, paddleRotation.y || 0, paddleRotation.z || 0);
+    paddleScreenRotationZ =
+      gameplayRotationZ != null && Number.isFinite(gameplayRotationZ)
+        ? gameplayRotationZ
+        : paddleRotation.z || 0;
+  }
+
+  paddle.position.z = BALL_Z;
+  paddle.updateMatrixWorld(true);
+};
+
+const updateGameplayFaceCenter = () => {
+  faceCenterWorld.set(
+    paddle.position.x - Math.sin(paddleScreenRotationZ) * PADDLE_FACE_CENTER_Y,
+    paddle.position.y + Math.cos(paddleScreenRotationZ) * PADDLE_FACE_CENTER_Y,
+    BALL_Z
+  );
+};
+
+const handleBallWallCollisions = () => {
+  if (!ball) return;
+
+  const { width, height } = getVisibleWorldSize(ball.position.z);
+  const halfWidth = width / 2 - BALL_RADIUS;
+  const halfHeight = height / 2 - BALL_RADIUS;
+
+  if (ball.position.x < -halfWidth) {
+    ball.position.x = -halfWidth;
+    ballVelocity.x = Math.abs(ballVelocity.x);
+  } else if (ball.position.x > halfWidth) {
+    ball.position.x = halfWidth;
+    ballVelocity.x = -Math.abs(ballVelocity.x);
+  }
+
+  if (ball.position.y > halfHeight) {
+    ball.position.y = halfHeight;
+    ballVelocity.y = -Math.abs(ballVelocity.y);
+  }
+
+  if (ball.position.y < -height / 2 - BALL_RADIUS * 2) {
+    resetBall();
+  }
+};
+
+const handlePaddleCollision = () => {
+  if (!ball || !paddle || !paddle.visible || paddleHitCooldown > 0) {
+    return;
+  }
+
+  updateGameplayFaceCenter();
+
+  collisionNormal.set(
+    ball.position.x - faceCenterWorld.x,
+    ball.position.y - faceCenterWorld.y,
+    0
+  );
+
+  const collisionDistance = collisionNormal.length();
+  const overlapDistance = PADDLE_FACE_RADIUS * PADDLE_HIT_RADIUS_MULT + BALL_RADIUS;
+  if (collisionDistance > overlapDistance) {
+    return;
+  }
+
+  if (collisionDistance < 0.001) {
+    collisionNormal.set(0, 1, 0);
+  } else {
+    collisionNormal.multiplyScalar(1 / collisionDistance);
+  }
+
+  const horizontalInfluence =
+    collisionNormal.x * 2.2 + paddleVelocity.x * 0.08 + paddleVelocity.y * 0.02;
+  const verticalLift =
+    MIN_UPWARD_SPEED +
+    Math.max(0, paddleVelocity.y) * 0.12 +
+    Math.max(0, -collisionNormal.y) * 1.25;
+
+  ballVelocity.x = THREE.MathUtils.clamp(
+    ballVelocity.x * 0.35 + horizontalInfluence,
+    -MAX_BALL_SPEED,
+    MAX_BALL_SPEED
+  );
+  ballVelocity.y = Math.max(verticalLift, Math.abs(ballVelocity.y) * 0.2);
+  ballVelocity.z = 0;
+  clampBallSpeed();
+
+  ball.position.copy(faceCenterWorld).addScaledVector(collisionNormal, overlapDistance + 0.02);
+  ball.position.z = BALL_Z;
+  paddleHitCooldown = 0.08;
+};
+
+const updateBall = (deltaTime) => {
+  if (!ball || deltaTime <= 0) return;
+
+  if (paddleHitCooldown > 0) {
+    paddleHitCooldown = Math.max(0, paddleHitCooldown - deltaTime);
+  }
+
+  ballVelocity.y = Math.max(-MAX_FALL_SPEED, ballVelocity.y + BALL_GRAVITY * deltaTime);
+  ball.position.addScaledVector(ballVelocity, deltaTime);
+  ball.position.z = BALL_Z;
+  handlePaddleCollision();
+  handleBallWallCollisions();
+};
 
 /**
- * Initializes the Three.js scene with a cylinder
- * @param {HTMLCanvasElement} canvas - The canvas element for rendering
- * @param {HTMLVideoElement} video - The video element for background texture
+ * Initializes the Three.js scene for table tennis.
+ * @param {HTMLCanvasElement} canvas - The canvas element for rendering.
+ * @param {HTMLVideoElement} video - The video element used for aspect ratio.
  */
 export const initThreeScene = (canvas, video) => {
   if (isInitialized) return;
 
-  // Scene setup
+  sceneCanvas = canvas;
   scene = new THREE.Scene();
 
-  // Camera setup - perspective camera matching video aspect ratio
   const aspect = video.videoWidth / video.videoHeight;
   camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
-  camera.position.z = 5;
+  camera.position.z = CAMERA_Z;
 
-  // Renderer setup
   renderer = new THREE.WebGLRenderer({
-    canvas: canvas,
-    alpha: true, // Transparent background for overlay
+    canvas: sceneCanvas,
+    alpha: true,
     antialias: true,
   });
-  
-  // Set canvas element width/height attributes to match display size
-  // The canvas CSS makes it full viewport (100vw x 100vh)
-  const displayWidth = window.innerWidth;
-  const displayHeight = window.innerHeight;
-  canvas.width = displayWidth;
-  canvas.height = displayHeight;
-  
-  // Set renderer size to match canvas display size
-  renderer.setSize(displayWidth, displayHeight, false);
+
   renderer.setPixelRatio(window.devicePixelRatio);
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  directionalLight.position.set(5, 5, 5);
-  scene.add(directionalLight);
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+  keyLight.position.set(3, 4, 8);
+  scene.add(keyLight);
 
-  // Create cylinder (table tennis paddle-like shape) - bigger size
-  const geometry = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x4a90e2,
-    metalness: 0.3,
-    roughness: 0.4,
-  });
-  cylinder = new THREE.Mesh(geometry, material);
-  
-  // Position cylinder initially in center at typical hand depth
-  cylinder.position.set(0, 0, -2.5);
-  scene.add(cylinder);
+  const rimLight = new THREE.DirectionalLight(0x8cc8ff, 0.5);
+  rimLight.position.set(-4, -2, 6);
+  scene.add(rimLight);
+
+  createPaddle();
+  createBall();
+  handleResize();
+  resetBall();
 
   isInitialized = true;
+  render();
 };
 
 /**
- * Updates the cylinder position
- * @param {number} x - X coordinate in 3D space
- * @param {number} y - Y coordinate in 3D space
- * @param {number} z - Z coordinate in 3D space
+ * Advances the table tennis scene by one frame.
+ * @param {Object} params - Frame update params.
+ * @param {{x:number,y:number,z:number}|null} params.paddlePosition - Paddle position.
+ * @param {{x:number,y:number,z:number}|null} params.paddleRotation - Paddle rotation.
+ * @param {boolean} params.paddleVisible - Whether the paddle is visible.
+ * @param {number} params.deltaTime - Frame delta time in seconds.
  */
-export const setCylinderPosition = (x, y, z) => {
-  if (!cylinder) return;
-  cylinder.position.set(x, y, z);
+export const updateTableTennis = ({
+  paddlePosition = null,
+  paddleRotation = null,
+  /** Screen-space Z used only for gameplay face offset; can differ from visual paddle.rotation.z */
+  gameplayRotationZ = null,
+  paddleVisible = false,
+  deltaTime = 0,
+} = {}) => {
+  if (!isInitialized) return;
+
+  updatePaddle(paddlePosition, paddleRotation, paddleVisible, deltaTime, gameplayRotationZ);
+  updateBall(deltaTime);
+  render();
 };
 
 /**
- * Resets the cylinder to center position
+ * Gets the current ball state for debug output.
+ * @returns {{position: {x:number,y:number,z:number}, velocity: {x:number,y:number,z:number}}|null}
  */
-export const resetCylinderPosition = () => {
-  if (!cylinder) return;
-  cylinder.position.set(0, 0, -2.5);
-  cylinder.rotation.set(0, 0, 0);
+export const getBallState = () => {
+  if (!ball) return null;
+
+  return {
+    position: {
+      x: ball.position.x,
+      y: ball.position.y,
+      z: ball.position.z,
+    },
+    velocity: {
+      x: ballVelocity.x,
+      y: ballVelocity.y,
+      z: ballVelocity.z,
+    },
+  };
 };
 
 /**
- * Updates the cylinder rotation
- * @param {number} x - Rotation around X axis (pitch) in radians
- * @param {number} y - Rotation around Y axis (yaw) in radians
- * @param {number} z - Rotation around Z axis (roll) in radians
- */
-export const setCylinderRotation = (x, y, z) => {
-  if (!cylinder) return;
-  cylinder.rotation.set(x, y, z);
-};
-
-/**
- * Sets the visibility of the cylinder
- * @param {boolean} visible - Whether the cylinder should be visible
- */
-export const setCylinderVisibility = (visible) => {
-  if (!cylinder) return;
-  cylinder.visible = visible;
-};
-
-/**
- * Gets the current cylinder position
- * @returns {THREE.Vector3|null} The cylinder position
- */
-export const getCylinderPosition = () => {
-  if (!cylinder) return null;
-  return cylinder.position.clone();
-};
-
-/**
- * Renders the scene
+ * Renders the scene.
  */
 export const render = () => {
   if (!isInitialized || !renderer || !scene || !camera) return;
@@ -122,46 +371,39 @@ export const render = () => {
 };
 
 /**
- * Updates the renderer size to match canvas display dimensions
- * @param {number} width - New width (video pixel width, for aspect calculation)
- * @param {number} height - New height (video pixel height, for aspect calculation)
+ * Updates the renderer size to match the current viewport.
+ * @param {number} width - The source video width.
+ * @param {number} height - The source video height.
  */
 export const updateSize = (width, height) => {
-  if (!renderer || !camera || !canvas) return;
-  
-  // Update camera aspect ratio based on video dimensions
+  if (!renderer || !camera || !sceneCanvas) return;
+
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  
-  // Update renderer size to match canvas display size (full viewport)
   handleResize();
 };
 
 /**
- * Handles window resize to update renderer size
+ * Handles browser resize updates.
  */
 const handleResize = () => {
-  if (!renderer || !camera || !canvas) return;
-  
+  if (!renderer || !camera || !sceneCanvas) return;
+
   const displayWidth = window.innerWidth;
   const displayHeight = window.innerHeight;
-  
-  // Update canvas element attributes
-  canvas.width = displayWidth;
-  canvas.height = displayHeight;
-  
-  // Update renderer size
+
+  sceneCanvas.width = displayWidth;
+  sceneCanvas.height = displayHeight;
   renderer.setSize(displayWidth, displayHeight, false);
 };
 
-// Add window resize listener
-if (typeof window !== 'undefined') {
-  window.addEventListener('resize', handleResize);
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", handleResize);
 }
 
 /**
- * Checks if the scene is initialized
- * @returns {boolean} True if initialized
+ * Checks if the scene is initialized.
+ * @returns {boolean}
  */
 export const getIsInitialized = () => isInitialized;
 

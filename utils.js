@@ -11,6 +11,15 @@ export const setDebug = (debugContentEl, info) => {
   txt += "───────────────\n";
   txt += `Hands: ${info.hands}\n`;
   txt += `Distance: ${info.distance}\n`;
+  if (info.tt_lock !== undefined && info.tt_lock !== "-") {
+    txt += `TT lock: ${info.tt_lock}\n`;
+  }
+  if (info.tt_dropout !== undefined) {
+    txt += `TT dropout: ${info.tt_dropout}\n`;
+  }
+  if (info.tt_world !== undefined && info.tt_world !== "-") {
+    txt += `TT world: ${info.tt_world}\n`;
+  }
   if (info.grabbed !== undefined) {
     txt += `Grabbed: ${info.grabbed}\n`;
   }
@@ -31,6 +40,9 @@ export const setDebug = (debugContentEl, info) => {
   }
   if (info.handA_to_cylinder_dist !== undefined && info.handA_to_cylinder_dist !== "-") {
     txt += `To Cylinder: ${info.handA_to_cylinder_dist}\n`;
+  }
+  if (info.tracked_hand !== undefined && info.tracked_hand !== "-") {
+    txt += `Tracked Hand: ${info.tracked_hand}\n`;
   }
   txt += "\n";
   
@@ -60,6 +72,20 @@ export const setDebug = (debugContentEl, info) => {
     txt += "───────────────\n";
     txt += `Facing Each Other: ${info.facing}\n`;
     txt += `Close: ${info.close}\n`;
+  }
+
+  if (
+    (info.ball_position !== undefined && info.ball_position !== "-") ||
+    (info.ball_velocity !== undefined && info.ball_velocity !== "-")
+  ) {
+    txt += "\nGame\n";
+    txt += "───────────────\n";
+    if (info.ball_position !== undefined && info.ball_position !== "-") {
+      txt += `Ball Position: ${info.ball_position}\n`;
+    }
+    if (info.ball_velocity !== undefined && info.ball_velocity !== "-") {
+      txt += `Ball Velocity: ${info.ball_velocity}\n`;
+    }
   }
   
   debugContentEl.textContent = txt;
@@ -122,7 +148,9 @@ export const landmarkTo3D = (landmark, canvasWidth, canvasHeight, depth = null) 
   const fov = 75;
   const aspect = canvasWidth / canvasHeight;
   const fovRad = (fov * Math.PI) / 180;
-  const distance = 5; // Distance from camera
+  const z = depth !== null ? depth : -2.5;
+  const cameraZ = 5;
+  const distance = Math.max(0.1, cameraZ - z);
   
   // Calculate world space dimensions at the given distance
   const worldHeight = 2 * Math.tan(fovRad / 2) * distance;
@@ -134,9 +162,6 @@ export const landmarkTo3D = (landmark, canvasWidth, canvasHeight, depth = null) 
   
   // Y: 0-1 maps to worldHeight/2 to -worldHeight/2 (inverted for Three.js)
   const y = (0.5 - landmark.y) * worldHeight;
-  
-  // Z: Use provided depth or estimate from hand size
-  const z = depth !== null ? depth : -2.5;
   
   return { x, y, z };
 };
@@ -166,4 +191,59 @@ export const isHandNearCylinder = (handPos3D, cylinderPos3D, grabThreshold = 0.8
   const distance = dist3D(handPos3D, cylinderPos3D);
   return distance <= grabThreshold;
 };
+
+/**
+ * Exponential smoothing for a 3-vector (copying into a new object when state is null).
+ * @param {{x:number,y:number,z:number}|null} state
+ * @param {{x:number,y:number,z:number}} target
+ * @param {number} alpha in (0, 1]
+ */
+export const expSmoothVec3 = (state, target, alpha) => {
+  if (!state) {
+    return { x: target.x, y: target.y, z: target.z };
+  }
+  return {
+    x: state.x + (target.x - state.x) * alpha,
+    y: state.y + (target.y - state.y) * alpha,
+    z: state.z + (target.z - state.z) * alpha,
+  };
+};
+
+/**
+ * Clamp movement per frame to reject single-frame spikes.
+ * @param {{x:number,y:number,z:number}} prev
+ * @param {{x:number,y:number,z:number}} next
+ * @param {number} maxDelta
+ */
+export const clampVec3Delta = (prev, next, maxDelta) => {
+  const dx = next.x - prev.x;
+  const dy = next.y - prev.y;
+  const dz = next.z - prev.z;
+  const len = Math.hypot(dx, dy, dz);
+  if (len <= maxDelta || len < 1e-9) {
+    return { x: next.x, y: next.y, z: next.z };
+  }
+  const scale = maxDelta / len;
+  return {
+    x: prev.x + dx * scale,
+    y: prev.y + dy * scale,
+    z: prev.z + dz * scale,
+  };
+};
+
+/**
+ * Shortest signed angle delta in radians.
+ */
+export const shortestAngleDelta = (from, to) => {
+  let d = to - from;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+};
+
+/**
+ * Exponential smoothing for angles with wrap handling.
+ */
+export const expSmoothAngle = (state, target, alpha) =>
+  state == null ? target : state + shortestAngleDelta(state, target) * alpha;
 

@@ -14,73 +14,86 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 1.5rem;
+  box-sizing: border-box;
+  background: #fff;
+  color: #171717;
   z-index: 1000;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "kern" 1;
+  -webkit-font-smoothing: antialiased;
 }
 
 #selection-screen.hidden {
   display: none;
 }
 
-#selection-screen h1 {
-  color: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  font-size: 3rem;
-  font-weight: 700;
-  margin-bottom: 1.5rem;
+.selection-content {
+  width: min(100%, 20rem);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   text-align: center;
+}
+
+#selection-screen h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: #171717;
 }
 
 .selection-subtitle {
-  color: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  font-size: 1.25rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
   font-weight: 400;
-  margin-bottom: 0.75rem;
-  text-align: center;
-  opacity: 0.9;
+  line-height: 1.5;
+  color: #525252;
 }
 
 .camera-notice {
-  color: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  font-size: 1rem;
+  margin: 0 0 1.5rem;
+  font-size: 0.8125rem;
   font-weight: 400;
-  margin-bottom: 3rem;
-  text-align: center;
-  opacity: 0.7;
-  font-style: italic;
+  line-height: 1.45;
+  color: #737373;
 }
 
 #experiment-buttons {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  align-items: center;
+  gap: 0.5rem;
+  align-items: stretch;
 }
 
 #experiment-buttons button {
-  padding: 1rem 2.5rem;
-  font-size: 1.25rem;
-  font-weight: 600;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  color: #ffffff;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  border-radius: 12px;
+  padding: 0.625rem 1rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: #fff;
+  background: #171717;
+  border: 1px solid #171717;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-  min-width: 200px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 #experiment-buttons button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  background: #404040;
+  border-color: #404040;
 }
 
 #experiment-buttons button:active {
-  transform: translateY(0);
+  background: #262626;
+  border-color: #262626;
+}
+
+#experiment-buttons button:focus-visible {
+  outline: 2px solid #171717;
+  outline-offset: 2px;
 }
 
 canvas {

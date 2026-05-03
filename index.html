@@ -2,16 +2,25 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Webcam Canvas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="style.css" />
   </head>
 
   <body>
     <div id="selection-screen">
-      <h1>Will's Pose Experiments</h1>
-      <p class="selection-subtitle">Select an experiment to begin with</p>
-      <p class="camera-notice">Make sure your camera is plugged in</p>
-      <div id="experiment-buttons"></div>
+      <div class="selection-content">
+        <h1>Will's Pose Experiments</h1>
+        <p class="selection-subtitle">Choose an experiment to start.</p>
+        <p class="camera-notice">A working camera is required.</p>
+        <div id="experiment-buttons"></div>
+      </div>
     </div>
     <canvas id="canvas"></canvas>
     <div id="debug" class="debug-panel" style="display:none;">
